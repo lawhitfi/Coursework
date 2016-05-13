@@ -1,0 +1,20 @@
+
+# Required packages
+install.packages("twitteR")
+install.packages("ROAuth")
+library("twitteR")
+library("ROAuth")
+
+# Enter user credentials from account in order to pull tweets.
+consumer_key="consumer_key"
+consumer_secret="consumer_secret"
+access_token="access_token"
+access_secret="access_secret"
+setup_twitter_oauth(consumer_key, consumer_secret, access_token, access_secret)
+
+# Pull n tweets that have zika in them with no language restriction. 
+tweets <- searchTwitter("zika", n=100000, retryOnRateLimit=200)
+
+# Convert to a dataframe & save for later analysis
+tweetsdf <- twListToDF(tweets)
+save(tweetsdf, file = "Tweets_0503.Rda")
