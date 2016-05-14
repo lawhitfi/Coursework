@@ -1,0 +1,123 @@
+#install.packages("tidytext")
+#install.packages("tidyr")
+#install.packages("dplyr")
+#install.packages("stringr")
+#install.packages("ggplot2")
+#install.packages("wordcloud") # word-cloud generator 
+#install.packages("RColorBrewer") # color palettes
+#install.packages("maps")
+#install.packages("mapdata")
+#install.packages("mapproj")
+
+library(tidytext)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(wordcloud)
+library(RColorBrewer)
+library(maps)
+library(mapdata)
+library(mapproj)
+
+load("data_cat.Rda") 
+zika <- data_cat
+colnames(zika)
+
+# Count the number of non-missing coordinates
+sum(!is.na(zika$latitude))
+sum(!is.na(zika$longitude))
+
+# Dates of datapull
+range(zika$created)
+
+# Convert to one word per line
+wordformat <- data_cat %>%
+  unnest_tokens(word, text)
+
+# Remove stop words
+extra <- tbl_df(data.frame(word = c("de", "el", "en", "https", "del", "la", "por", "para", "con", "rt", "con", "t.co", "um",
+                                    "los", "se", "da", "al", "em", "es", "las", "una", "lo", "é", "uma", "1", "6", "2",
+                                    "le", "não", "à", "htt", "te", "jà", "http", "ao","os", "4", "sur", "3", "te", "nao"), 
+                                    stringsAsFactors = FALSE))
+
+data("stop_words")
+wordformat <- wordformat %>%
+  anti_join(stop_words, by="word")
+
+wordformat <- wordformat %>%
+  anti_join(extra, by = "word")
+
+countdata <- wordformat %>%
+  count(word, sort = TRUE)
+
+# Word cloud
+pal2 <- brewer.pal(8,"Dark2")
+png("wordcloud.png", width=1280,height=800)
+wordcloud(countdata$word,countdata$n, scale=c(8,1),min.freq=1000,
+          max.words=100, random.order=FALSE, rot.per=.15, colors=pal2)
+dev.off()
+
+# Bar chart
+png(filename="barplot.png", width=1280, height=1000)
+par(mar = c(9,4,4,2) + 0.1)
+barplot(countdata[1:20,]$n, las = 2, names.arg = countdata[1:20,]$word,
+        col ="lightblue", main ="Most frequent words", cex.names=1.5)
+dev.off()
+
+# Sentiment dataset
+bing <- sentiments %>%
+  filter(lexicon == "bing") %>%
+  select(-score)
+
+# Sentiment Analysis
+zikasent <- wordformat %>%
+  inner_join(bing, by = "word") %>% 
+  count(id, sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) %>%
+  left_join(zika, by = 'id')
+
+# Too many points to be helpful on this graph...
+ggplot(zikasent, aes(created, sentiment), alpha=.5) + geom_line() 
+
+# Plot a smoothed time series graph
+png(filename="smoothed.png", width=1280, height=1000)
+zikasent$Date <- as.Date(zikasent$created, format = "%m/%d/%Y")
+smoothScatter(zikasent$Date, zikasent$sentiment, nbin=500, bandwidth=1, nrpoints=300,
+              xlab = "Time in Days",
+              ylab = "Sentiment Score",
+              xaxt = 'n')
+title(main="Smoothed Zika Sentiment Scores Over Time")
+axis(1, zikasent$Date, format(zikasent$Date, "%b %d"), cex.axis = .7, las=3)
+dev.off()
+
+# Create a subset of just those with coordinates
+subset <-  zika[!is.na(zika$latitude)&!is.na(zika$longitude),]
+subset$latitude <- as.numeric(subset$latitude)
+subset$longitude <- as.numeric(subset$longitude)
+
+# Create map
+png(filename="map.png", width=1280, height=1000)
+map(database = "world", ylim=c(-90,90), xlim=c(-180,180), col="grey80", fill=TRUE,
+    projection="rectangular", param=95)
+coord <- mapproject(subset$longitude, subset$latitude, proj="rectangular", param=95)
+points(coord, pch=20, cex=1.2, col="red")
+title(main="Zika Tweets by Location")
+dev.off()
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
